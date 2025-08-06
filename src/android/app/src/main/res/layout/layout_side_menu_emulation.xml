@@ -37,6 +37,11 @@
                     app:label="@{@string/show_pad}" />
 
                 <include
+                    android:id="@+id/external_display_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item"
+                    app:label="@{@string/external_display_pad}" />
+
+                <include
                     android:id="@+id/edit_inputs_menu_item"
                     layout="@layout/layout_side_menu_text_item"
                     app:label="@{@string/edit_inputs}" />

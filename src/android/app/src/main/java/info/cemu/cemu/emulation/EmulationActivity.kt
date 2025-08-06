@@ -5,6 +5,7 @@ import android.content.DialogInterface
 import android.graphics.SurfaceTexture
 import android.os.Bundle
 import android.text.InputFilter.LengthFilter
+import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
@@ -36,6 +37,7 @@ import info.cemu.cemu.input.SensorManager
 import info.cemu.cemu.inputoverlay.InputOverlaySettingsManager
 import info.cemu.cemu.inputoverlay.InputOverlaySurfaceView
 import info.cemu.cemu.inputoverlay.OverlaySettings
+import info.cemu.cemu.emulation.external.ExternalDisplayManager
 import info.cemu.cemu.nativeinterface.NativeEmulation
 import info.cemu.cemu.nativeinterface.NativeException
 import info.cemu.cemu.nativeinterface.NativeSwkbd.setCurrentInputText
@@ -57,6 +59,7 @@ class EmulationActivity : AppCompatActivity() {
             width: Int,
             height: Int,
         ) {
+            Log.d(TAG, "surfaceChanged width=$width height=$height main=$isMainCanvas")
             try {
                 NativeEmulation.setSurfaceSize(width, height, isMainCanvas)
                 if (surfaceSet) {
@@ -86,6 +89,7 @@ class EmulationActivity : AppCompatActivity() {
     private lateinit var emulationScreenSettings: EmulationScreenSettings
     private lateinit var inputOverlaySurfaceView: InputOverlaySurfaceView
     private lateinit var sensorManager: SensorManager
+    private lateinit var externalDisplayManager: ExternalDisplayManager
     private var hasEmulationError = false
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
@@ -129,6 +133,7 @@ class EmulationActivity : AppCompatActivity() {
         emulationScreenSettings = SettingsManager(this).emulationScreenSettings
         sensorManager = SensorManager(this)
         sensorManager.setDeviceRotationProvider(deviceRotationProvider = { display.rotation })
+        externalDisplayManager = ExternalDisplayManager(this)
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -136,7 +141,9 @@ class EmulationActivity : AppCompatActivity() {
             }
         })
 
-        initializeView(getLaunchPath())
+        val launchPath = getLaunchPath()
+        Log.d(TAG, "Launching game with path: $launchPath")
+        initializeView(launchPath)
         setContentView(binding.root)
     }
 
@@ -144,6 +151,7 @@ class EmulationActivity : AppCompatActivity() {
         if (padCanvas == null) {
             return
         }
+        Log.d(TAG, "destroyPadCanvas")
         binding.canvasesLayout.removeView(padCanvas)
         padCanvas = null
     }
@@ -165,6 +173,25 @@ class EmulationActivity : AppCompatActivity() {
         }
     }
 
+    private fun setExternalDisplayEnabled(enabled: Boolean) {
+        Log.d(TAG, "setExternalDisplayEnabled($enabled)")
+        if (enabled) {
+            val enabledOk = externalDisplayManager.enableExternalDisplay()
+            Log.d(TAG, "enableExternalDisplay returned $enabledOk")
+            if (enabledOk) {
+                padCanvas?.visibility = View.GONE
+            }
+        } else {
+            externalDisplayManager.disableExternalDisplay()
+            Log.d(TAG, "external display disabled")
+            padCanvas?.let { canvas ->
+                canvas.visibility = View.VISIBLE
+                NativeEmulation.setSurfaceSize(canvas.width, canvas.height, false)
+                NativeEmulation.setSurface(canvas.holder.surface, false)
+            } ?: createPadCanvas()
+        }
+    }
+
     private fun LayoutSideMenuTextItemBinding.setEnabled(isEnabled: Boolean) {
         textItem.isEnabled = isEnabled
         textItem.alpha = if (isEnabled) 1f else 0.7f
@@ -182,11 +209,15 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun LayoutSideMenuCheckboxItemBinding.configure(
+        isEnabled: Boolean = true,
         initialCheckedStatus: Boolean = false,
         onCheckChanged: (Boolean) -> Unit,
     ) {
+        checkboxItem.isEnabled = isEnabled
+        checkbox.isEnabled = isEnabled
         checkbox.isChecked = initialCheckedStatus
         checkboxItem.setOnClickListener {
+            if (!checkboxItem.isEnabled) return@setOnClickListener
             checkbox.isChecked = !checkbox.isChecked
             onCheckChanged(checkbox.isChecked)
             binding.drawerLayout.close()
@@ -199,6 +230,10 @@ class EmulationActivity : AppCompatActivity() {
         enableMotionCheckbox.configure(onCheckChanged = ::setMotionEnabled)
         replaceTvWithPadCheckbox.configure(onCheckChanged = NativeEmulation::setReplaceTVWithPadView)
         showPadCheckbox.configure(onCheckChanged = ::setPadViewVisibility)
+        externalDisplayCheckbox.configure(
+            isEnabled = externalDisplayManager.hasExternalDisplay(),
+            onCheckChanged = ::setExternalDisplayEnabled
+        )
         showInputOverlayCheckbox.configure(initialCheckedStatus = isInputOverlayEnabled) { showInputOverlay ->
             editInputsMenuItem.setEnabled(showInputOverlay)
             resetInputOverlayMenuItem.setEnabled(showInputOverlay)
@@ -310,7 +345,9 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun startGame(launchPath: String) {
+        Log.d(TAG, "startGame($launchPath)")
         val result = NativeEmulation.startGame(launchPath)
+        Log.d(TAG, "startGame result=$result")
         if (result == NativeEmulation.START_GAME_SUCCESSFUL) {
             return
         }
@@ -335,10 +372,10 @@ class EmulationActivity : AppCompatActivity() {
         }
     }
 
-
     override fun onDestroy() {
         super.onDestroy()
         sensorManager.pauseListening()
+        externalDisplayManager.disableExternalDisplay()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -346,6 +383,7 @@ class EmulationActivity : AppCompatActivity() {
         if (padCanvas != null) {
             return
         }
+        Log.d(TAG, "createPadCanvas")
         val padCanvas = SurfaceView(this)
         binding.canvasesLayout.addView(
             padCanvas,
@@ -388,6 +426,7 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TAG = "EmulationActivity"
         const val EXTRA_LAUNCH_PATH: String = BuildConfig.APPLICATION_ID + ".LaunchPath"
         private var emulationActivityInstance: WeakReference<EmulationActivity?> =
             WeakReference(null)
