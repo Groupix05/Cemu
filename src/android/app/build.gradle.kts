@@ -209,6 +209,32 @@ val computeCemuDataFilesHashTask =tasks.register<ComputeCemuDataFilesHashTask>("
 }
 tasks.preBuild.dependsOn(computeCemuDataFilesHashTask)
 
+android.applicationVariants.configureEach {
+    if (name == "github") {
+        assembleProvider.get().doLast {
+            println("Ejecutando script híbrido después del build de github...")
+
+            val scriptFile = File(rootDir, "generar_apk_hibrido.sh")
+            if (scriptFile.exists()) {
+                println("Ejecutando script: ${scriptFile.absolutePath}")
+                val process = ProcessBuilder("bash", scriptFile.absolutePath)
+                    .redirectErrorStream(true)
+                    .start()
+                process.inputStream.bufferedReader().forEachLine { println(it) }
+                val exitCode = process.waitFor()
+                if (exitCode == 0) {
+                    println("Script ejecutado exitosamente")
+                } else {
+                    println("El script terminó con código de error $exitCode")
+                }
+            } else {
+                println("Script no encontrado en: ${scriptFile.absolutePath}")
+            }
+        }
+    }
+}
+
+
 dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.kotlinx.serialization.json)
