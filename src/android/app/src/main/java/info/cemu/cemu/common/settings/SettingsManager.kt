@@ -9,7 +9,8 @@ enum class GamePadPosition {
     ABOVE,
     BELOW,
     LEFT,
-    RIGHT;
+    RIGHT,
+    EXTERNAL;
 
     fun isVertical() = this == ABOVE || this == BELOW
     fun appearsAfterTV() = this == BELOW || this == RIGHT

@@ -1,8 +1,10 @@
 package info.cemu.cemu.emulation
 
 import android.annotation.SuppressLint
+import android.app.Presentation
 import android.graphics.SurfaceTexture
 import android.os.Bundle
+import android.hardware.display.DisplayManager
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
@@ -71,6 +73,7 @@ class EmulationActivity : AppCompatActivity() {
 
     private var emulationTextInputDialog: AlertDialog? = null
     private var padCanvas: SurfaceView? = null
+    private var padPresentation: Presentation? = null
     private lateinit var binding: ActivityEmulationBinding
     private lateinit var inputOverlaySettings: InputOverlaySettings
     private lateinit var emulationSettings: EmulationSettings
@@ -153,7 +156,11 @@ class EmulationActivity : AppCompatActivity() {
         if (padCanvas == null) {
             return
         }
-        binding.canvasesLayout.removeView(padCanvas)
+        padPresentation?.dismiss()
+        padPresentation = null
+        if (padCanvas?.parent === binding.canvasesLayout) {
+            binding.canvasesLayout.removeView(padCanvas)
+        }
         padCanvas = null
     }
 
@@ -374,13 +381,33 @@ class EmulationActivity : AppCompatActivity() {
         if (padCanvas != null) {
             return
         }
+        val position = emulationSettings.gamePadPosition
+
+        if (position == GamePadPosition.EXTERNAL) {
+            val displayManager = getSystemService(DisplayManager::class.java)
+            val displays = displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
+            if (displays.isNotEmpty()) {
+                val display = displays[0]
+                padPresentation = object : Presentation(this, display) {
+                    override fun onCreate(savedInstanceState: Bundle?) {
+                        super.onCreate(savedInstanceState)
+                        val surfaceView = SurfaceView(context)
+                        setContentView(surfaceView)
+                        surfaceView.holder.addCallback(CanvasSurfaceHolderCallback(false))
+                        surfaceView.setOnTouchListener(CanvasOnTouchListener(false))
+                        padCanvas = surfaceView
+                    }
+                }
+                padPresentation?.show()
+                return
+            }
+        }
+
         val padCanvas = SurfaceView(this)
 
         val padCanvasViewIndex: Int
         val canvasLayoutParams: ViewGroup.LayoutParams
         val orientation: Int
-
-        val position = emulationSettings.gamePadPosition
 
         if (position.isVertical()) {
             orientation = LinearLayout.VERTICAL

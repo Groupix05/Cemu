@@ -71,6 +71,7 @@ private fun gamePadPositionToString(position: GamePadPosition) = when (position)
     GamePadPosition.BELOW -> tr("Below")
     GamePadPosition.LEFT -> tr("Left")
     GamePadPosition.RIGHT -> tr("Right")
+    GamePadPosition.EXTERNAL -> tr("External display")
 }
 
 private fun consoleLanguageToString(channels: Int): String = when (channels) {
