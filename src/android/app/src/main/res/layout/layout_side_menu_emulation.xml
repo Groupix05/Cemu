@@ -38,16 +38,20 @@
                     layout="@layout/layout_side_menu_checkbox_item" />
 
                 <include
+                    android:id="@+id/external_display_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item" />
+
+                <include
+                    android:id="@+id/show_input_overlay_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item" />
+
+                <include
                     android:id="@+id/edit_inputs_menu_item"
                     layout="@layout/layout_side_menu_text_item" />
 
                 <include
                     android:id="@+id/reset_input_overlay_menu_item"
                     layout="@layout/layout_side_menu_text_item" />
-
-                <include
-                    android:id="@+id/show_input_overlay_checkbox"
-                    layout="@layout/layout_side_menu_checkbox_item" />
 
                 <include
                     android:id="@+id/exit_menu_item"

@@ -1,8 +1,12 @@
 package info.cemu.cemu.emulation
 
 import android.annotation.SuppressLint
+import android.app.Presentation
+import android.content.Context
 import android.graphics.SurfaceTexture
+import android.hardware.display.DisplayManager
 import android.os.Bundle
+import android.view.Display
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
@@ -76,7 +80,16 @@ class EmulationActivity : AppCompatActivity() {
     private lateinit var emulationSettings: EmulationSettings
     private lateinit var inputOverlaySurfaceView: InputOverlaySurfaceView
     private lateinit var sensorManager: SensorManager
+    private lateinit var displayManager: DisplayManager
+    private var padPresentation: Presentation? = null
+    private var isPadOnExternalDisplay = false
     private var toast: Toast? = null
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = updatePadPresentation()
+        override fun onDisplayRemoved(displayId: Int) = updatePadPresentation()
+        override fun onDisplayChanged(displayId: Int) = updatePadPresentation()
+    }
 
     private var isGameRunning = false
     private var isMotionEnabled = false
@@ -131,6 +144,7 @@ class EmulationActivity : AppCompatActivity() {
         emulationSettings = SettingsManager.emulationSettings
         sensorManager = SensorManager(this)
         sensorManager.setDeviceRotationProvider(deviceRotationProvider = { display.rotation })
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() = toggleDrawer()
@@ -138,6 +152,7 @@ class EmulationActivity : AppCompatActivity() {
 
         initializeView(getLaunchPath())
 
+        displayManager.registerDisplayListener(displayListener, null)
         setContentView(binding.root)
     }
 
@@ -158,10 +173,72 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun setPadViewVisibility(visible: Boolean) {
-        if (visible) {
-            createPadCanvas()
+        if (isPadOnExternalDisplay) {
+            if (visible) {
+                updatePadPresentation()
+            } else {
+                padPresentation?.dismiss()
+                padPresentation = null
+            }
         } else {
+            if (visible) {
+                createPadCanvas()
+            } else {
+                destroyPadCanvas()
+            }
+        }
+    }
+
+    private fun updatePadPresentation() {
+        if (!isPadOnExternalDisplay || !binding.sideMenu.showPadCheckbox.checkbox.isChecked) {
+            padPresentation?.dismiss()
+            padPresentation = null
+            if (binding.sideMenu.showPadCheckbox.checkbox.isChecked && padCanvas == null) {
+                createPadCanvas()
+            }
+            return
+        }
+        val externalDisplay = displayManager.displays.firstOrNull { it.displayId != display.displayId }
+        if (externalDisplay != null) {
+            padPresentation?.dismiss()
+            padPresentation = PadPresentation(this, externalDisplay)
+            padPresentation?.show()
+        } else {
+            padPresentation?.dismiss()
+            padPresentation = null
+            if (padCanvas == null) {
+                createPadCanvas()
+            }
+        }
+    }
+
+    private fun setPadOnExternalDisplay(enabled: Boolean) {
+        isPadOnExternalDisplay = enabled
+        if (enabled) {
             destroyPadCanvas()
+        } else {
+            padPresentation?.dismiss()
+            padPresentation = null
+        }
+        updatePadPresentation()
+    }
+
+        private inner class PadPresentation(context: Context, display: Display) :
+        Presentation(context, display) {
+        private lateinit var surfaceView: SurfaceView
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            val mode = display.mode
+            surfaceView = SurfaceView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                )
+                holder.setFixedSize(mode.physicalWidth, mode.physicalHeight)
+                holder.addCallback(CanvasSurfaceHolderCallback(false))
+                setOnTouchListener(CanvasOnTouchListener(false))
+            }
+            setContentView(surfaceView)
         }
     }
 
@@ -232,6 +309,15 @@ class EmulationActivity : AppCompatActivity() {
             onCheckChanged = ::setPadViewVisibility
         )
 
+        externalDisplayCheckbox.configure(
+            label = tr("External PAD screen"),
+            initialCheckedStatus = emulationSettings.isPadOnExternalDisplay,
+            onCheckChanged = {
+                emulationSettings.isPadOnExternalDisplay = it
+                setPadOnExternalDisplay(it)
+            }
+        )
+
         showInputOverlayCheckbox.configure(
             tr(text = "Show input overlay"),
             initialCheckedStatus = isInputOverlayEnabled,
@@ -268,6 +354,7 @@ class EmulationActivity : AppCompatActivity() {
         initializeInputOverlay()
 
         binding.sideMenu.configureSideMenu()
+        setPadOnExternalDisplay(emulationSettings.isPadOnExternalDisplay)
 
         binding.moveInputsButton.setOnClickListener { _ ->
             if (inputOverlaySurfaceView.getInputMode() == InputOverlaySurfaceView.InputMode.EDIT_POSITION) {
@@ -368,6 +455,8 @@ class EmulationActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         sensorManager.pauseListening()
+        padPresentation?.dismiss()
+        displayManager.unregisterDisplayListener(displayListener)
     }
 
     private fun createPadCanvas() {

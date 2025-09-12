@@ -195,12 +195,24 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_setDPI([[maybe_unused]] JNIE
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_clearSurface([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean is_main_canvas)
 {
-	if (!is_main_canvas)
-	{
-		auto renderer = static_cast<VulkanRenderer*>(g_renderer.get());
-		if (renderer)
-			renderer->StopUsingPadAndWait();
-	}
+        if (!is_main_canvas)
+        {
+                // Mark pad surface as closed so rendering code no longer treats it as active
+                auto& windowInfo = WindowSystem::GetWindowInfo();
+                windowInfo.pad_open = false;
+
+                auto renderer = static_cast<VulkanRenderer*>(g_renderer.get());
+                if (renderer)
+                        renderer->StopUsingPadAndWait();
+
+                // release native surface handle
+                auto& padHandle = windowInfo.canvas_pad;
+                if (padHandle.surface)
+                {
+                        ANativeWindow_release(static_cast<ANativeWindow*>(padHandle.surface));
+                        padHandle.surface = nullptr;
+                }
+        }
 }
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_recreateRenderSurface([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean is_main_canvas)
@@ -217,23 +229,30 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_supportsLoadingCustomDriver(
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_setSurface(JNIEnv* env, [[maybe_unused]] jclass clazz, jobject surface, jboolean is_main_canvas)
 {
-	JNIUtils::handleNativeException(env, [&]() {
-		cemu_assert_debug(surface != nullptr);
-		auto& windowHandleInfo = is_main_canvas ? WindowSystem::GetWindowInfo().canvas_main : WindowSystem::GetWindowInfo().canvas_pad;
-		windowHandleInfo.backend = WindowSystem::WindowHandleInfo::Backend::Android;
-		if (windowHandleInfo.surface)
-		{
-			ANativeWindow_release(static_cast<ANativeWindow*>(windowHandleInfo.surface));
-			windowHandleInfo.surface = nullptr;
-		}
-		windowHandleInfo.surface = ANativeWindow_fromSurface(env, surface);
-		int width, height;
-		if (is_main_canvas)
-			WindowSystem::GetWindowPhysSize(width, height);
-		else
-			WindowSystem::GetPadWindowPhysSize(width, height);
-		VulkanRenderer::GetInstance()->InitializeSurface({width, height}, is_main_canvas);
-	});
+        JNIUtils::handleNativeException(env, [&]() {
+                cemu_assert_debug(surface != nullptr);
+                auto& windowInfo = WindowSystem::GetWindowInfo();
+                auto& windowHandleInfo = is_main_canvas ? windowInfo.canvas_main : windowInfo.canvas_pad;
+                windowHandleInfo.backend = WindowSystem::WindowHandleInfo::Backend::Android;
+                if (windowHandleInfo.surface)
+                {
+                        ANativeWindow_release(static_cast<ANativeWindow*>(windowHandleInfo.surface));
+                        windowHandleInfo.surface = nullptr;
+                }
+                windowHandleInfo.surface = ANativeWindow_fromSurface(env, surface);
+                int width, height;
+                if (is_main_canvas)
+                {
+                        WindowSystem::GetWindowPhysSize(width, height);
+                }
+                else
+                {
+                        // Inform renderer that pad surface is active and use its physical size
+                        windowInfo.pad_open = true;
+                        WindowSystem::GetPadWindowPhysSize(width, height);
+                }
+                VulkanRenderer::GetInstance()->InitializeSurface({width, height}, is_main_canvas);
+        });
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
