@@ -42,6 +42,10 @@
                     layout="@layout/layout_side_menu_checkbox_item" />
 
                 <include
+                    android:id="@+id/swap_screens_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item" />
+
+                <include
                     android:id="@+id/rotate_external_display_left_checkbox"
                     layout="@layout/layout_side_menu_checkbox_item" />
 

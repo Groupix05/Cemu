@@ -159,11 +159,21 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_setReplaceTVWithPadView([[ma
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
-Java_info_cemu_cemu_nativeinterface_NativeEmulation_setPadRotatedLeft([[maybe_unused]] JNIEnv* env,
-                                                                      [[maybe_unused]] jclass clazz,
-                                                                      jboolean rotated)
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_setSwapScreens([[maybe_unused]] JNIEnv* env,
+                                                                  [[maybe_unused]] jclass clazz,
+                                                                  jboolean swapped)
 {
-    WindowSystem::GetWindowInfo().pad_rotated_left = rotated;
+    WindowSystem::GetWindowInfo().swap_screens = swapped;
+    LatteGPUState.isDRCPrimary = swapped;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_setExternalScreenRotatedLeft(
+    [[maybe_unused]] JNIEnv* env,
+    [[maybe_unused]] jclass clazz,
+    jboolean rotated)
+{
+    WindowSystem::GetWindowInfo().external_screen_rotated_left = rotated;
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
@@ -282,7 +292,9 @@ Java_info_cemu_cemu_nativeinterface_NativeEmulation_setSurfaceSize([[maybe_unuse
 extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_startGame([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jstring launchPath)
 {
-	WindowSystem::GetWindowInfo().set_keystatesup();
-	NativeEmulation::initializeAudioDevices();
-	return NativeEmulation::startGame(JNIUtils::toString(env, launchPath));
+       WindowSystem::GetWindowInfo().set_keystatesup();
+       NativeEmulation::initializeAudioDevices();
+       auto result = NativeEmulation::startGame(JNIUtils::toString(env, launchPath));
+       LatteGPUState.isDRCPrimary = WindowSystem::GetWindowInfo().swap_screens;
+       return result;
 }

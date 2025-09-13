@@ -192,8 +192,8 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun updatePadPresentation() {
-        NativeEmulation.setPadRotatedLeft(
-            isPadOnExternalDisplay && emulationSettings.isExternalPadRotatedLeft
+        NativeEmulation.setExternalScreenRotatedLeft(
+            emulationSettings.isExternalScreenRotatedLeft
         )
         if (!isPadOnExternalDisplay || !binding.sideMenu.showPadCheckbox.checkbox.isChecked) {
             padPresentation?.dismiss()
@@ -232,6 +232,15 @@ class EmulationActivity : AppCompatActivity() {
         updatePadPresentation()
     }
 
+    private fun setSwapScreens(enabled: Boolean) {
+        emulationSettings.areScreensSwapped = enabled
+        NativeEmulation.setSwapScreens(enabled)
+        binding.mainCanvas.setOnTouchListener(CanvasOnTouchListener(isTV = !enabled))
+        padPresentation?.dismiss()
+        padPresentation = null
+        updatePadPresentation()
+    }
+
         private inner class PadPresentation(context: Context, display: Display) :
         Presentation(context, display) {
         private lateinit var surfaceView: SurfaceView
@@ -243,7 +252,7 @@ class EmulationActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
-                if (emulationSettings.isExternalPadRotatedLeft) {
+                if (emulationSettings.isExternalScreenRotatedLeft) {
                     holder.setFixedSize(mode.physicalHeight, mode.physicalWidth)
                 } else {
                     holder.setFixedSize(mode.physicalWidth, mode.physicalHeight)
@@ -251,8 +260,8 @@ class EmulationActivity : AppCompatActivity() {
                 holder.addCallback(CanvasSurfaceHolderCallback(false))
                 setOnTouchListener(
                     CanvasOnTouchListener(
-                        isTV = false,
-                        rotateLeft = emulationSettings.isExternalPadRotatedLeft
+                        isTV = emulationSettings.areScreensSwapped,
+                        rotateLeft = emulationSettings.isExternalScreenRotatedLeft
                     )
                 )
             }
@@ -336,11 +345,17 @@ class EmulationActivity : AppCompatActivity() {
             }
         )
 
+        swapScreensCheckbox.configure(
+            label = tr("Swap screens"),
+            initialCheckedStatus = emulationSettings.areScreensSwapped,
+            onCheckChanged = ::setSwapScreens
+        )
+
         rotateExternalDisplayLeftCheckbox.configure(
-            label = tr("Rotate external PAD left"),
-            initialCheckedStatus = emulationSettings.isExternalPadRotatedLeft,
+            label = tr("Rotate external screen left"),
+            initialCheckedStatus = emulationSettings.isExternalScreenRotatedLeft,
             onCheckChanged = {
-                emulationSettings.isExternalPadRotatedLeft = it
+                emulationSettings.isExternalScreenRotatedLeft = it
                 updatePadPresentation()
             }
         )
@@ -381,6 +396,7 @@ class EmulationActivity : AppCompatActivity() {
         initializeInputOverlay()
 
         binding.sideMenu.configureSideMenu()
+        NativeEmulation.setSwapScreens(emulationSettings.areScreensSwapped)
         setPadOnExternalDisplay(emulationSettings.isPadOnExternalDisplay)
 
         binding.moveInputsButton.setOnClickListener { _ ->
@@ -434,7 +450,7 @@ class EmulationActivity : AppCompatActivity() {
                 }
             }
         })
-        mainCanvas.setOnTouchListener(CanvasOnTouchListener(isTV = true))
+        mainCanvas.setOnTouchListener(CanvasOnTouchListener(isTV = !emulationSettings.areScreensSwapped))
     }
 
     private fun initializeInputOverlay() {

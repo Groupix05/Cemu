@@ -402,7 +402,7 @@ VkSwapchainCreateInfoKHR SwapchainInfoVk::CreateSwapchainCreateInfo(VkSurfaceKHR
 	else
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 #if __ANDROID__
-        if (!mainWindow && WindowSystem::GetWindowInfo().pad_rotated_left)
+        if (!mainWindow && WindowSystem::GetWindowInfo().external_screen_rotated_left)
                 createInfo.preTransform = VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR;
         else
                 createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;

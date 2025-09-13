@@ -19,7 +19,7 @@ object NativeEmulation {
     external fun setSurfaceSize(width: Int, height: Int, isMainCanvas: Boolean)
 
     @JvmStatic
-    external fun setPadRotatedLeft(rotated: Boolean)
+    external fun setExternalScreenRotatedLeft(rotated: Boolean)
 
     @JvmStatic
     external fun initializeRenderer(surface: Surface?)
@@ -37,6 +37,9 @@ object NativeEmulation {
 
     @JvmStatic
     external fun setReplaceTVWithPadView(swapped: Boolean)
+
+    @JvmStatic
+    external fun setSwapScreens(swapped: Boolean)
 
     @JvmStatic
     external fun recreateRenderSurface(isMainCanvas: Boolean)
