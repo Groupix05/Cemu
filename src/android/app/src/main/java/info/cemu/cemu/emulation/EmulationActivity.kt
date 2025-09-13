@@ -246,6 +246,10 @@ class EmulationActivity : AppCompatActivity() {
         private lateinit var surfaceView: SurfaceView
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
+            window?.addFlags(
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            )
             val mode = display.mode
             surfaceView = SurfaceView(context).apply {
                 layoutParams = ViewGroup.LayoutParams(
