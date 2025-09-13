@@ -238,6 +238,7 @@ class EmulationActivity : AppCompatActivity() {
         binding.mainCanvas.setOnTouchListener(CanvasOnTouchListener(isTV = !enabled))
         padPresentation?.dismiss()
         padPresentation = null
+        padCanvas?.setOnTouchListener(CanvasOnTouchListener(isTV = enabled))
         updatePadPresentation()
     }
 
@@ -538,7 +539,9 @@ class EmulationActivity : AppCompatActivity() {
             canvasLayoutParams
         )
         padCanvas.holder.addCallback(CanvasSurfaceHolderCallback(false))
-        padCanvas.setOnTouchListener(CanvasOnTouchListener(false))
+        padCanvas.setOnTouchListener(
+            CanvasOnTouchListener(isTV = emulationSettings.areScreensSwapped)
+        )
         this.padCanvas = padCanvas
     }
 
