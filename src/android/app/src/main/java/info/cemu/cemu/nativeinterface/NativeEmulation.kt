@@ -19,6 +19,9 @@ object NativeEmulation {
     external fun setSurfaceSize(width: Int, height: Int, isMainCanvas: Boolean)
 
     @JvmStatic
+    external fun setPadRotatedLeft(rotated: Boolean)
+
+    @JvmStatic
     external fun initializeRenderer(surface: Surface?)
 
     object StartGameStatusCode {

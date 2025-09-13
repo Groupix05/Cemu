@@ -1,5 +1,6 @@
 package info.cemu.cemu
 
+import android.app.Activity
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -34,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import info.cemu.cemu.about.AboutCemuRoute
 import info.cemu.cemu.about.aboutCemuNavigation
+import info.cemu.cemu.common.android.display.DisplayUtils
 import info.cemu.cemu.common.ui.components.ActivityContent
 import info.cemu.cemu.common.ui.localization.TranslatableContent
 import info.cemu.cemu.common.ui.localization.tr
@@ -58,6 +60,7 @@ import android.graphics.drawable.Icon as AndroidIcon
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DisplayUtils.init(this)
         setContent {
             TranslatableContent {
                 ActivityContent {
@@ -169,12 +172,14 @@ private fun GameListToolBarActionsMenu(
 }
 
 private fun startGame(context: Context, game: Game) {
-    Intent(
-        context,
-        EmulationActivity::class.java
-    ).apply {
+    val intent = Intent(context, EmulationActivity::class.java).apply {
         putExtra(EmulationActivity.EXTRA_LAUNCH_PATH, game.path)
-        context.startActivity(this)
+    }
+    val activity = context as? Activity
+    if (activity != null) {
+        activity.startActivity(intent)
+    } else {
+        context.startActivity(intent)
     }
 }
 

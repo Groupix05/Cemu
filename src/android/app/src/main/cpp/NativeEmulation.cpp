@@ -154,8 +154,16 @@ namespace NativeEmulation
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeEmulation_setReplaceTVWithPadView([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean swapped)
 {
-	// Emulate pressing the TAB key for showing DRC instead of TV
+        // Emulate pressing the TAB key for showing DRC instead of TV
     WindowSystem::GetWindowInfo().set_keystate(static_cast<uint32>(WindowSystem::PlatformKeyCodes::TAB), swapped);
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeEmulation_setPadRotatedLeft([[maybe_unused]] JNIEnv* env,
+                                                                      [[maybe_unused]] jclass clazz,
+                                                                      jboolean rotated)
+{
+    WindowSystem::GetWindowInfo().pad_rotated_left = rotated;
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL

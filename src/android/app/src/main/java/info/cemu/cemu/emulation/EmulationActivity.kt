@@ -38,6 +38,7 @@ import info.cemu.cemu.common.settings.GamePadPosition
 import info.cemu.cemu.common.settings.InputOverlaySettings
 import info.cemu.cemu.common.settings.SettingsManager
 import info.cemu.cemu.emulation.inputoverlay.InputOverlaySurfaceView
+import info.cemu.cemu.common.android.display.DisplayUtils
 import java.lang.ref.WeakReference
 import kotlin.system.exitProcess
 
@@ -135,6 +136,7 @@ class EmulationActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DisplayUtils.init(this)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
@@ -190,6 +192,9 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun updatePadPresentation() {
+        NativeEmulation.setPadRotatedLeft(
+            isPadOnExternalDisplay && emulationSettings.isExternalPadRotatedLeft
+        )
         if (!isPadOnExternalDisplay || !binding.sideMenu.showPadCheckbox.checkbox.isChecked) {
             padPresentation?.dismiss()
             padPresentation = null
@@ -198,10 +203,14 @@ class EmulationActivity : AppCompatActivity() {
             }
             return
         }
-        val externalDisplay = displayManager.displays.firstOrNull { it.displayId != display.displayId }
-        if (externalDisplay != null) {
+        val padDisplay = if (display.displayId == Display.DEFAULT_DISPLAY) {
+            DisplayUtils.getExternalDisplay(this)
+        } else {
+            DisplayUtils.getInternalDisplay(this)
+        }
+        if (padDisplay != null) {
             padPresentation?.dismiss()
-            padPresentation = PadPresentation(this, externalDisplay)
+            padPresentation = PadPresentation(this, padDisplay)
             padPresentation?.show()
         } else {
             padPresentation?.dismiss()
@@ -234,9 +243,18 @@ class EmulationActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
-                holder.setFixedSize(mode.physicalWidth, mode.physicalHeight)
+                if (emulationSettings.isExternalPadRotatedLeft) {
+                    holder.setFixedSize(mode.physicalHeight, mode.physicalWidth)
+                } else {
+                    holder.setFixedSize(mode.physicalWidth, mode.physicalHeight)
+                }
                 holder.addCallback(CanvasSurfaceHolderCallback(false))
-                setOnTouchListener(CanvasOnTouchListener(false))
+                setOnTouchListener(
+                    CanvasOnTouchListener(
+                        isTV = false,
+                        rotateLeft = emulationSettings.isExternalPadRotatedLeft
+                    )
+                )
             }
             setContentView(surfaceView)
         }
@@ -315,6 +333,15 @@ class EmulationActivity : AppCompatActivity() {
             onCheckChanged = {
                 emulationSettings.isPadOnExternalDisplay = it
                 setPadOnExternalDisplay(it)
+            }
+        )
+
+        rotateExternalDisplayLeftCheckbox.configure(
+            label = tr("Rotate external PAD left"),
+            initialCheckedStatus = emulationSettings.isExternalPadRotatedLeft,
+            onCheckChanged = {
+                emulationSettings.isExternalPadRotatedLeft = it
+                updatePadPresentation()
             }
         )
 

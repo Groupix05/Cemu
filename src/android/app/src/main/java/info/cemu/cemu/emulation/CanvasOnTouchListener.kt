@@ -5,7 +5,7 @@ import android.view.MotionEvent
 import android.view.View
 import info.cemu.cemu.nativeinterface.NativeInput
 
-class CanvasOnTouchListener(val isTV: Boolean) : View.OnTouchListener {
+class CanvasOnTouchListener(val isTV: Boolean, private val rotateLeft: Boolean = false) : View.OnTouchListener {
     private var currentPointerId: Int = -1
 
     @SuppressLint("ClickableViewAccessibility")
@@ -15,22 +15,32 @@ class CanvasOnTouchListener(val isTV: Boolean) : View.OnTouchListener {
         if (currentPointerId != -1 && pointerId != currentPointerId) {
             return false
         }
-        val x = event.getX(pointerIndex).toInt()
-        val y = event.getY(pointerIndex).toInt()
+        var x = event.getX(pointerIndex)
+        var y = event.getY(pointerIndex)
+
+        if (rotateLeft) {
+            val height = v.height.toFloat()
+            val tmpX = x
+            x = height - y
+            y = tmpX
+        }
+
+        val xi = x.toInt()
+        val yi = y.toInt()
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                NativeInput.onTouchDown(x, y, isTV)
+                NativeInput.onTouchDown(xi, yi, isTV)
                 return true
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 currentPointerId = -1
-                NativeInput.onTouchUp(x, y, isTV)
+                NativeInput.onTouchUp(xi, yi, isTV)
                 return true
             }
 
             MotionEvent.ACTION_MOVE -> {
-                NativeInput.onTouchMove(x, y, isTV)
+                NativeInput.onTouchMove(xi, yi, isTV)
                 return true
             }
         }

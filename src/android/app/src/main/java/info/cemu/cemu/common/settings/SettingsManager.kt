@@ -18,6 +18,7 @@ enum class GamePadPosition {
 class EmulationSettings(sharedPreferences: SharedPreferences) {
     var gamePadPosition by sharedPreferences.enumPref(GamePadPosition.RIGHT)
     var isPadOnExternalDisplay by sharedPreferences.booleanPref(false)
+    var isExternalPadRotatedLeft by sharedPreferences.booleanPref(false)
 }
 
 class GuiSettings(sharedPreferences: SharedPreferences) {
