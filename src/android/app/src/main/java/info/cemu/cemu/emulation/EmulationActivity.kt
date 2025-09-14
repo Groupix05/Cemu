@@ -257,11 +257,25 @@ class EmulationActivity : AppCompatActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
-                if (emulationSettings.isExternalScreenRotatedLeft) {
-                    holder.setFixedSize(mode.physicalHeight, mode.physicalWidth)
-                } else {
-                    holder.setFixedSize(mode.physicalWidth, mode.physicalHeight)
+
+                // Many phones report their physical dimensions in portrait mode even when the
+                // activity is running in landscape. This results in a squished view when the pad
+                // is shown on the internal display. Ensure that the surface is always created in
+                // landscape orientation unless explicitly rotated by the user.
+                var surfaceWidth = mode.physicalWidth
+                var surfaceHeight = mode.physicalHeight
+                if (surfaceWidth < surfaceHeight) {
+                    val tmp = surfaceWidth
+                    surfaceWidth = surfaceHeight
+                    surfaceHeight = tmp
                 }
+                if (emulationSettings.isExternalScreenRotatedLeft) {
+                    val tmp = surfaceWidth
+                    surfaceWidth = surfaceHeight
+                    surfaceHeight = tmp
+                }
+                holder.setFixedSize(surfaceWidth, surfaceHeight)
+
                 holder.addCallback(CanvasSurfaceHolderCallback(false))
                 setOnTouchListener(
                     CanvasOnTouchListener(
