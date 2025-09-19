@@ -82,7 +82,7 @@ android {
     androidComponents {
         beforeVariants { variantBuilder ->
             if (variantBuilder.name == "release") {
-                variantBuilder.enable = false
+                variantBuilder.enable = true
             }
         }
     }
