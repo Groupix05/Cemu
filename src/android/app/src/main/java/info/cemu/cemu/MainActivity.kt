@@ -46,11 +46,13 @@ import info.cemu.cemu.settings.SettingsRoute
 import info.cemu.cemu.settings.settingsNavigation
 import info.cemu.cemu.titlemanager.TitleManagerRoute
 import info.cemu.cemu.titlemanager.titleManagerNavigation
+import info.cemu.cemu.common.android.display.DisplayUtils
 import java.io.File
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DisplayUtils.init(this)
         setContent {
             ActivityContent {
                 MainNav()

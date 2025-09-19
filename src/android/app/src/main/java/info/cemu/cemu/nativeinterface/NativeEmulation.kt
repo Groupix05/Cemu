@@ -19,6 +19,9 @@ object NativeEmulation {
     external fun setSurfaceSize(width: Int, height: Int, isMainCanvas: Boolean)
 
     @JvmStatic
+    external fun setExternalScreenRotatedLeft(rotated: Boolean)
+
+    @JvmStatic
     external fun initializeRenderer(surface: Surface?)
 
     const val START_GAME_SUCCESSFUL: Int = 0
@@ -32,6 +35,9 @@ object NativeEmulation {
 
     @JvmStatic
     external fun setReplaceTVWithPadView(swapped: Boolean)
+
+    @JvmStatic
+    external fun setSwapScreens(swapped: Boolean)
 
     @JvmStatic
     external fun recreateRenderSurface(isMainCanvas: Boolean)

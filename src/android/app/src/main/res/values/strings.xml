@@ -162,6 +162,9 @@
     <string name="edit_inputs">Edit inputs</string>
     <string name="show_pad">Show pad</string>
     <string name="replace_tv_with_pad">Replace TV with PAD</string>
+    <string name="external_pad_screen">External PAD screen</string>
+    <string name="swap_screens">Swap screens</string>
+    <string name="rotate_external_screen_left">Rotate external screen left</string>
     <string name="installed_games_title">Installed games</string>
     <string name="enable_motion">Enable motion</string>
     <string name="add_game_path">Add game path</string>

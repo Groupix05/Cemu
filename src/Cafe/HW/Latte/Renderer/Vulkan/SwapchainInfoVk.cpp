@@ -402,9 +402,12 @@ VkSwapchainCreateInfoKHR SwapchainInfoVk::CreateSwapchainCreateInfo(VkSurfaceKHR
 	else
 		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 #if __ANDROID__
-	createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+        if (!this->mainWindow && GuiSystem::getWindowInfo().external_screen_rotated_left)
+                createInfo.preTransform = VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR;
+        else
+                createInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 #else
-	createInfo.preTransform = swapchainSupport.capabilities.currentTransform;
+        createInfo.preTransform = swapchainSupport.capabilities.currentTransform;
 #endif
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	createInfo.presentMode = ChoosePresentMode(swapchainSupport.presentModes);

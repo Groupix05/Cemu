@@ -1,0 +1,33 @@
+package info.cemu.cemu.common.android.display
+
+import android.app.Activity
+import android.content.Context
+import android.hardware.display.DisplayManager
+import android.view.Display
+import android.view.WindowManager
+
+object DisplayUtils {
+    private var launchDisplayId: Int? = null
+
+    fun init(activity: Activity) {
+        if (launchDisplayId != null) {
+            return
+        }
+        val displayId = activity.display?.displayId
+            ?: activity.windowManager.defaultDisplay.displayId
+        launchDisplayId = displayId
+    }
+
+    fun getInternalDisplay(context: Context): Display? {
+        val displayManager =
+            context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        return displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+    }
+
+    fun getExternalDisplay(context: Context): Display? {
+        val displayManager =
+            context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+        val internalId = getInternalDisplay(context)?.displayId ?: launchDisplayId
+        return displayManager.displays.firstOrNull { it.displayId != internalId }
+    }
+}

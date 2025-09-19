@@ -37,6 +37,21 @@
                     app:label="@{@string/show_pad}" />
 
                 <include
+                    android:id="@+id/external_display_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item"
+                    app:label="@{@string/external_pad_screen}" />
+
+                <include
+                    android:id="@+id/swap_screens_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item"
+                    app:label="@{@string/swap_screens}" />
+
+                <include
+                    android:id="@+id/rotate_external_display_left_checkbox"
+                    layout="@layout/layout_side_menu_checkbox_item"
+                    app:label="@{@string/rotate_external_screen_left}" />
+
+                <include
                     android:id="@+id/edit_inputs_menu_item"
                     layout="@layout/layout_side_menu_text_item"
                     app:label="@{@string/edit_inputs}" />
