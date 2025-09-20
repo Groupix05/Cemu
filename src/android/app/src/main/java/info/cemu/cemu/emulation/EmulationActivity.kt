@@ -47,10 +47,18 @@ import info.cemu.cemu.nativeinterface.NativeSwkbd.setCurrentInputText
 import info.cemu.cemu.settings.EmulationScreenSettings
 import info.cemu.cemu.settings.SettingsManager
 import java.lang.ref.WeakReference
+import java.util.EnumMap
 import kotlin.system.exitProcess
 
 class EmulationActivity : AppCompatActivity() {
-    private inner class CanvasSurfaceHolderCallback(val isMainCanvas: Boolean) :
+    private enum class CanvasType {
+        MAIN,
+        PAD,
+    }
+
+    private data class SurfaceDimensions(var width: Int = 1, var height: Int = 1)
+
+    private inner class CanvasSurfaceHolderCallback(private val canvasType: CanvasType) :
         SurfaceHolder.Callback {
         var surfaceSet: Boolean = false
 
@@ -63,19 +71,19 @@ class EmulationActivity : AppCompatActivity() {
             height: Int,
         ) {
             try {
-                NativeEmulation.setSurfaceSize(width, height, isMainCanvas)
-                if (surfaceSet) {
-                    return
+                NativeEmulation.setSurfaceSize(width, height, canvasType == CanvasType.MAIN)
+                if (!surfaceSet) {
+                    NativeEmulation.setSurface(surfaceHolder.surface, canvasType == CanvasType.MAIN)
+                    surfaceSet = true
                 }
-                NativeEmulation.setSurface(surfaceHolder.surface, isMainCanvas)
-                surfaceSet = true
             } catch (exception: NativeException) {
                 onEmulationError(getString(R.string.failed_create_surface_error, exception.message))
             }
+            updateSurfaceDimensions(canvasType, width, height)
         }
 
         override fun surfaceDestroyed(surfaceHolder: SurfaceHolder) {
-            NativeEmulation.clearSurface(isMainCanvas)
+            NativeEmulation.clearSurface(canvasType == CanvasType.MAIN)
             surfaceSet = false
         }
     }
@@ -96,6 +104,14 @@ class EmulationActivity : AppCompatActivity() {
     private var padPresentation: PadPresentation? = null
     private var isPadOnExternalDisplay = false
     private var hasEmulationError = false
+    private val canvasSurfaceDimensions =
+        EnumMap<CanvasType, SurfaceDimensions>(CanvasType::class.java).apply {
+            put(CanvasType.MAIN, SurfaceDimensions())
+            put(CanvasType.PAD, SurfaceDimensions())
+        }
+    private lateinit var mainCanvasTouchListener: CanvasOnTouchListener
+    private var padCanvasTouchListener: CanvasOnTouchListener? = null
+    private var padPresentationTouchListener: CanvasOnTouchListener? = null
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) = updatePadPresentation()
@@ -167,6 +183,7 @@ class EmulationActivity : AppCompatActivity() {
         }
         binding.canvasesLayout.removeView(padCanvas)
         padCanvas = null
+        padCanvasTouchListener = null
     }
 
     private fun setPadViewVisibility(visible: Boolean) {
@@ -174,8 +191,7 @@ class EmulationActivity : AppCompatActivity() {
             if (visible) {
                 updatePadPresentation()
             } else {
-                padPresentation?.dismiss()
-                padPresentation = null
+                dismissPadPresentation()
             }
         } else {
             if (visible) {
@@ -195,10 +211,10 @@ class EmulationActivity : AppCompatActivity() {
         if (enabled) {
             destroyPadCanvas()
         } else {
-            padPresentation?.dismiss()
-            padPresentation = null
+            dismissPadPresentation()
         }
         updatePadPresentation()
+        configurePadTouchListeners()
     }
 
     private fun setSwapScreens(enabled: Boolean) {
@@ -207,10 +223,8 @@ class EmulationActivity : AppCompatActivity() {
         settingsManager.emulationScreenSettings = emulationScreenSettings
         NativeEmulation.setSwapScreens(enabled)
 
-        updateMainCanvasTouchListener()
-        padCanvas?.setOnTouchListener(createPadTouchListener())
-        padPresentation?.dismiss()
-        padPresentation = null
+        updateTouchListenerTargets()
+        dismissPadPresentation()
         updatePadPresentation()
     }
 
@@ -220,8 +234,7 @@ class EmulationActivity : AppCompatActivity() {
         )
         val showPad = binding.sideMenu.showPadCheckbox.checkbox.isChecked
         if (!isPadOnExternalDisplay || !showPad) {
-            padPresentation?.dismiss()
-            padPresentation = null
+            dismissPadPresentation()
             if (showPad && padCanvas == null) {
                 createPadCanvas()
             }
@@ -236,30 +249,84 @@ class EmulationActivity : AppCompatActivity() {
         }
 
         if (padDisplay == null) {
-            padPresentation?.dismiss()
-            padPresentation = null
+            dismissPadPresentation()
             if (padCanvas == null) {
                 createPadCanvas()
             }
             return
         }
 
-        padPresentation?.dismiss()
+        dismissPadPresentation()
         padPresentation = PadPresentation(this, padDisplay).also { it.show() }
     }
 
-    private fun updateMainCanvasTouchListener() {
-        binding.mainCanvas.setOnTouchListener(createMainCanvasTouchListener())
+    private fun configureMainCanvasTouchListener() {
+        if (!::mainCanvasTouchListener.isInitialized) {
+            return
+        }
+        val isTvTarget = !emulationScreenSettings.areScreensSwapped
+        val targetDimensions = canvasSurfaceDimensions.getValue(
+            if (isTvTarget) CanvasType.MAIN else CanvasType.PAD
+        )
+        mainCanvasTouchListener.updateConfiguration(
+            isTv = isTvTarget,
+            surfaceWidth = targetDimensions.width,
+            surfaceHeight = targetDimensions.height,
+            rotateLeft = false
+        )
     }
 
-    private fun createMainCanvasTouchListener(): CanvasOnTouchListener {
-        val isTv = !emulationScreenSettings.areScreensSwapped
-        return CanvasOnTouchListener(isTv)
+    private fun configurePadTouchListeners() {
+        val isTvTarget = emulationScreenSettings.areScreensSwapped
+        val targetDimensions = canvasSurfaceDimensions.getValue(
+            if (isTvTarget) CanvasType.MAIN else CanvasType.PAD
+        )
+        padCanvasTouchListener?.updateConfiguration(
+            isTv = isTvTarget,
+            surfaceWidth = targetDimensions.width,
+            surfaceHeight = targetDimensions.height,
+            rotateLeft = false
+        )
+        val rotateLeft = isPadOnExternalDisplay && emulationScreenSettings.isExternalScreenRotatedLeft
+        padPresentationTouchListener?.updateConfiguration(
+            isTv = isTvTarget,
+            surfaceWidth = targetDimensions.width,
+            surfaceHeight = targetDimensions.height,
+            rotateLeft = rotateLeft
+        )
     }
 
-    private fun createPadTouchListener(rotateLeft: Boolean = false): CanvasOnTouchListener {
-        val isTv = emulationScreenSettings.areScreensSwapped
-        return CanvasOnTouchListener(isTv, rotateLeft)
+    private fun updateTouchListenerTargets() {
+        configureMainCanvasTouchListener()
+        configurePadTouchListeners()
+    }
+
+    private fun updateSurfaceDimensions(canvasType: CanvasType, width: Int, height: Int) {
+        val dimensions = canvasSurfaceDimensions[canvasType] ?: return
+        dimensions.width = width.coerceAtLeast(1)
+        dimensions.height = height.coerceAtLeast(1)
+        val isMainTargetingTv = !emulationScreenSettings.areScreensSwapped
+        when (canvasType) {
+            CanvasType.MAIN -> {
+                configureMainCanvasTouchListener()
+                if (!isMainTargetingTv) {
+                    configurePadTouchListeners()
+                }
+            }
+
+            CanvasType.PAD -> {
+                configurePadTouchListeners()
+                if (!isMainTargetingTv) {
+                    configureMainCanvasTouchListener()
+                }
+            }
+        }
+    }
+
+    private fun dismissPadPresentation() {
+        padPresentation?.dismiss()
+        padPresentation = null
+        padPresentationTouchListener = null
     }
 
     private inner class PadPresentation(context: Context, display: Display) :
@@ -293,12 +360,12 @@ class EmulationActivity : AppCompatActivity() {
                 }
                 holder.setFixedSize(surfaceWidth, surfaceHeight)
 
-                holder.addCallback(CanvasSurfaceHolderCallback(false))
-                setOnTouchListener(
-                    createPadTouchListener(
-                        rotateLeft = emulationScreenSettings.isExternalScreenRotatedLeft
-                    )
-                )
+                holder.addCallback(CanvasSurfaceHolderCallback(CanvasType.PAD))
+                CanvasOnTouchListener().also { listener ->
+                    setOnTouchListener(listener)
+                    padPresentationTouchListener = listener
+                    configurePadTouchListeners()
+                }
             }
             setContentView(surfaceView)
         }
@@ -386,6 +453,8 @@ class EmulationActivity : AppCompatActivity() {
         setFullscreen()
 
         binding = ActivityEmulationBinding.inflate(layoutInflater)
+        mainCanvasTouchListener = CanvasOnTouchListener()
+        binding.mainCanvas.setOnTouchListener(mainCanvasTouchListener)
         inputOverlaySurfaceView = binding.inputOverlay
 
         inputOverlaySurfaceView.setVisible(overlaySettings.isOverlayEnabled)
@@ -444,7 +513,7 @@ class EmulationActivity : AppCompatActivity() {
         }
 
         val mainCanvasHolder = mainCanvas.holder
-        mainCanvasHolder.addCallback(CanvasSurfaceHolderCallback(isMainCanvas = true))
+        mainCanvasHolder.addCallback(CanvasSurfaceHolderCallback(CanvasType.MAIN))
         mainCanvasHolder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
             }
@@ -467,7 +536,7 @@ class EmulationActivity : AppCompatActivity() {
             override fun surfaceDestroyed(holder: SurfaceHolder) {
             }
         })
-        updateMainCanvasTouchListener()
+        configureMainCanvasTouchListener()
     }
 
     private fun toastMessage(@StringRes toastTextResId: Int) {
@@ -506,7 +575,7 @@ class EmulationActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         sensorManager.pauseListening()
-        padPresentation?.dismiss()
+        dismissPadPresentation()
         displayManager.unregisterDisplayListener(displayListener)
     }
 
@@ -520,8 +589,12 @@ class EmulationActivity : AppCompatActivity() {
             padCanvas,
             LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1.0f)
         )
-        padCanvas.holder.addCallback(CanvasSurfaceHolderCallback(false))
-        padCanvas.setOnTouchListener(createPadTouchListener())
+        padCanvas.holder.addCallback(CanvasSurfaceHolderCallback(CanvasType.PAD))
+        CanvasOnTouchListener().also { listener ->
+            padCanvas.setOnTouchListener(listener)
+            padCanvasTouchListener = listener
+            configurePadTouchListeners()
+        }
         this.padCanvas = padCanvas
     }
 
