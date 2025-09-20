@@ -187,6 +187,11 @@ class EmulationActivity : AppCompatActivity() {
     }
 
     private fun setPadViewVisibility(visible: Boolean) {
+        binding.sideMenu.showPadCheckbox.checkbox.isChecked = visible
+        if (emulationScreenSettings.isPadVisible != visible) {
+            emulationScreenSettings.isPadVisible = visible
+            settingsManager.emulationScreenSettings = emulationScreenSettings
+        }
         if (isPadOnExternalDisplay) {
             if (visible) {
                 updatePadPresentation()
@@ -413,7 +418,10 @@ class EmulationActivity : AppCompatActivity() {
 
         enableMotionCheckbox.configure(onCheckChanged = ::setMotionEnabled)
         replaceTvWithPadCheckbox.configure(onCheckChanged = NativeEmulation::setReplaceTVWithPadView)
-        showPadCheckbox.configure(onCheckChanged = ::setPadViewVisibility)
+        showPadCheckbox.configure(
+            initialCheckedStatus = emulationScreenSettings.isPadVisible,
+            onCheckChanged = ::setPadViewVisibility
+        )
         externalDisplayCheckbox.configure(
             initialCheckedStatus = emulationScreenSettings.isPadOnExternalDisplay,
             onCheckChanged = ::setPadOnExternalDisplay
