@@ -18,18 +18,9 @@ class CanvasOnTouchListener(
         if (currentPointerId != -1 && pointerId != currentPointerId) {
             return false
         }
-        var x = event.getX(pointerIndex)
-        var y = event.getY(pointerIndex)
 
-        if (rotateLeft) {
-            val height = v.height.toFloat()
-            val tmpX = x
-            x = height - y
-            y = tmpX
-        }
-
-        val xi = x.toInt()
-        val yi = y.toInt()
+        val xi = event.getX(pointerIndex).toInt()
+        val yi = event.getY(pointerIndex).toInt()
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 NativeInput.onTouchDown(xi, yi, isTV)
