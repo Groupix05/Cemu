@@ -84,64 +84,61 @@
 #include <glm/gtc/quaternion.hpp>
 
 namespace fs = std::filesystem;
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
 #include "Common/android/FilesystemAndroid.h"
 #endif // __ANDROID
 
-namespace cemu
-{
-namespace fs
+namespace cemu::fs
 {
 inline bool is_directory(const std::filesystem::path& p)
 {
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
     if (FilesystemAndroid::IsContentUri(p))
         return FilesystemAndroid::IsDirectory(p);
-#endif  // __ANDROID__
+#endif
     return std::filesystem::is_directory(p);
 }
 inline bool is_directory(const std::filesystem::path& p, std::error_code& ec)
 {
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
     if (FilesystemAndroid::IsContentUri(p))
         return FilesystemAndroid::IsDirectory(p);
-#endif  // __ANDROID__
+#endif
     return std::filesystem::is_directory(p, ec);
 }
 inline bool is_file(const std::filesystem::path& p)
 {
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
     if (FilesystemAndroid::IsContentUri(p))
         return FilesystemAndroid::IsFile(p);
-#endif  // __ANDROID__
+#endif
     return std::filesystem::is_regular_file(p);
 }
 inline bool is_file(const std::filesystem::path& p, std::error_code& ec)
 {
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
     if (FilesystemAndroid::IsContentUri(p))
         return FilesystemAndroid::IsFile(p);
-#endif  // __ANDROID__
+#endif
     return std::filesystem::is_regular_file(p, ec);
 }
 inline bool exists(const std::filesystem::path& p)
 {
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
     if (FilesystemAndroid::IsContentUri(p))
         return FilesystemAndroid::Exists(p);
-#endif  // __ANDROID__
+#endif
     return std::filesystem::exists(p);
 }
 inline bool exists(const std::filesystem::path& p, std::error_code& ec)
 {
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
     if (FilesystemAndroid::IsContentUri(p))
         return FilesystemAndroid::Exists(p);
-#endif  // __ANDROID__
+#endif
     return std::filesystem::exists(p, ec);
 }
-}  // namespace fs
-}  // namespace cemu);
+}  // namespace cemu::fs
 
 #include "enumFlags.h"
 
@@ -415,7 +412,7 @@ FORCE_INLINE int BSF(uint32 v) // returns index of first bit set, counting from 
 
 inline void _mm_pause()
 {
-    asm volatile("yield");
+    asm volatile("isb sy");
 }
 
 inline uint64 __rdtsc()

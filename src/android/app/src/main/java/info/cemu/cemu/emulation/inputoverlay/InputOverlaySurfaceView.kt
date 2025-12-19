@@ -3,18 +3,25 @@ package info.cemu.cemu.emulation.inputoverlay
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Rect
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.util.AttributeSet
 import android.util.DisplayMetrics
 import android.view.MotionEvent
 import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
 import info.cemu.cemu.R
-import info.cemu.cemu.common.settings.SettingsManager
-import info.cemu.cemu.emulation.inputoverlay.inputs.DPadInput
+import info.cemu.cemu.common.settings.InputOverlayRect
+import info.cemu.cemu.common.settings.InputOverlaySettings
+import info.cemu.cemu.common.settings.OverlayInputConfig
+import info.cemu.cemu.common.settings.getDefaultRectangle
+import info.cemu.cemu.emulation.inputoverlay.inputs.DPad
 import info.cemu.cemu.emulation.inputoverlay.inputs.Input
 import info.cemu.cemu.emulation.inputoverlay.inputs.Joystick
 import info.cemu.cemu.emulation.inputoverlay.inputs.RectangleButton
@@ -22,7 +29,6 @@ import info.cemu.cemu.emulation.inputoverlay.inputs.RoundButton
 import info.cemu.cemu.emulation.inputoverlay.inputs.innerdrawing.BlowButtonInnerDrawing
 import info.cemu.cemu.emulation.inputoverlay.inputs.innerdrawing.ButtonInnerDrawing
 import info.cemu.cemu.emulation.inputoverlay.inputs.innerdrawing.HomeButtonInnerDrawing
-import info.cemu.cemu.emulation.inputoverlay.inputs.innerdrawing.StickClickInnerDrawing
 import info.cemu.cemu.emulation.inputoverlay.inputs.innerdrawing.TextButtonInnerDrawing
 import info.cemu.cemu.nativeinterface.NativeInput
 import info.cemu.cemu.nativeinterface.NativeInput.getControllerType
@@ -31,84 +37,102 @@ import info.cemu.cemu.nativeinterface.NativeInput.onOverlayAxis
 import info.cemu.cemu.nativeinterface.NativeInput.onOverlayButton
 import kotlin.math.roundToInt
 
-class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
-    SurfaceView(context, attrs), OnTouchListener {
+class InputOverlaySurfaceView(context: Context) : SurfaceView(context), OnTouchListener {
     enum class InputMode {
-        DEFAULT,
-        EDIT_POSITION,
-        EDIT_SIZE,
+        DEFAULT, EDIT_POSITION, EDIT_SIZE,
     }
+
+    var onEditFinishedListener: ((Map<OverlayInputConfig, InputOverlayRect>) -> Unit)? =
+        null
 
     private var inputMode = InputMode.DEFAULT
     private var pixelDensity = 1
-    private var currentAlpha = 255
     private var currentConfiguredInput: Input? = null
-    private var nativeControllerType = -1
-    private var visible = false
-    private var controllerIndex: Int = 0
+    private var nativeControllerType = NativeInput.EmulatedControllerType.DISABLED
     private var onJoystickChange: (OverlayInput, Float, Float, Float, Float) -> Unit =
         { _, _, _, _, _ -> }
     private var overlyButtonToNativeButton: (OverlayInput) -> Int = { _ -> -1 }
-    private var inputs: MutableList<Pair<OverlayInput, Input>>? = null
-    private val inputOverlayInputsSettingsManager: InputOverlayInputsSettingsManager
-    private val vibrator: Vibrator?
+    private var inputs: MutableList<Pair<OverlayInput, Input>> = mutableListOf()
+    private val vibrator: Vibrator = getVibrator(context)
     private val buttonTouchVibrationEffect =
         VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK)
-    private var vibrateOnTouch: Boolean = false
-    private var inputsMinWidthHeight: Int = -1
+    private val inputsMinSize: Int
+    private val isVisible: Boolean
+        get() = visibility == VISIBLE
+
+    private var settings: InputOverlaySettings = InputOverlaySettings()
+    private val controllerIndex get() = settings.controllerIndex
+    private val currentAlpha get() = settings.alpha
+    private val isVibrateOnTouchEnabled: Boolean
+        get() = settings.isVibrateOnTouchEnabled && vibrator.hasVibrator()
 
     init {
+        visibility = GONE
+
         pixelDensity = context.resources.displayMetrics.densityDpi
-        inputsMinWidthHeight =
-            (INPUTS_MIN_WIDTH_HEIGHT_DP * (context.resources.displayMetrics.densityDpi.toFloat() / DisplayMetrics.DENSITY_DEFAULT)).roundToInt()
-        vibrator = getVibrator(context)
+
+        inputsMinSize =
+            (INPUTS_MIN_SIZE_DP * pixelDensity.toFloat() / DisplayMetrics.DENSITY_DEFAULT).roundToInt()
+
         setOnTouchListener(this)
-        inputOverlayInputsSettingsManager = InputOverlayInputsSettingsManager(context)
-        val overlaySettings = SettingsManager.inputOverlaySettings
-        controllerIndex = overlaySettings.controllerIndex
-        currentAlpha = overlaySettings.alpha
-        vibrateOnTouch = vibrator.hasVibrator() && overlaySettings.isVibrateOnTouchEnabled
     }
 
-    fun setVisible(visible: Boolean) {
-        this.visible = visible
-        invalidate()
-    }
-
-    fun resetInputs() {
-        if (inputs == null) {
+    fun applySettings(inputOverlaySettings: InputOverlaySettings) {
+        if (this.settings == inputOverlaySettings) {
             return
         }
-        for (input in OverlayInputList) {
-            inputOverlayInputsSettingsManager.clearSavedRectangle(input)
-        }
-        inputs!!.clear()
-        inputs = null
+
+        this.settings = inputOverlaySettings
+
         setInputs()
+
         invalidate()
+    }
+
+    fun setVisible(isVisible: Boolean) {
+        if (this.isVisible == isVisible) {
+            return
+        }
+
+        visibility = if (isVisible) VISIBLE else GONE
+
+        invalidate()
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        if (oldw == 0 || oldh == 0) {
+            setInputs()
+        }
+
+        super.onSizeChanged(w, h, oldw, oldh)
     }
 
     fun setInputMode(inputMode: InputMode) {
-        this.inputMode = inputMode
-        if (inputs == null) {
+        if (this.inputMode == inputMode) {
             return
         }
+
+        this.inputMode = inputMode
+
         if (this.inputMode != InputMode.DEFAULT) {
             return
         }
-        for ((overlayInput, input) in inputs!!) {
-            inputOverlayInputsSettingsManager.saveRectangle(overlayInput, input.getBoundingRectangle())
-        }
-    }
 
-    fun getInputMode(): InputMode {
-        return inputMode
+        val inputsRectangles =
+            inputs.associate { it.first.toConfig() to it.second.getBoundingRectangle() }
+
+        onEditFinishedListener?.invoke(inputsRectangles)
     }
 
     private fun getVibrator(context: Context): Vibrator {
-        val vibratorManager =
-            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-        return vibratorManager.defaultVibrator
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager =
+                context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            return vibratorManager.defaultVibrator
+        }
+
+        @Suppress("DEPRECATION")
+        return context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
     }
 
     private fun overlayButtonToVPADButton(button: OverlayInput): Int {
@@ -197,12 +221,15 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
 
     private fun onButtonStateChange(button: OverlayInput, state: Boolean) {
         val nativeButtonId = overlyButtonToNativeButton(button)
+
         if (nativeButtonId == -1) {
             return
         }
-        if (vibrateOnTouch && state) {
-            vibrator!!.vibrate(buttonTouchVibrationEffect)
+
+        if (isVibrateOnTouchEnabled && state) {
+            vibrator.vibrate(buttonTouchVibrationEffect)
         }
+
         onOverlayButton(controllerIndex, nativeButtonId, state)
     }
 
@@ -292,7 +319,18 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
     }
 
     private fun getBoundingRectangleForInput(input: OverlayInput): Rect {
-        return inputOverlayInputsSettingsManager.getInputOverlayRectangle(input, width, height, pixelDensity)
+        val rect = settings.inputOverlayRectMap[input.toConfig()]
+
+        if (rect != null) {
+            return Rect(
+                rect.left,
+                rect.top,
+                rect.right,
+                rect.bottom
+            )
+        }
+
+        return getDefaultRectangle(input.toConfig(), width, height, pixelDensity)
     }
 
     private fun MutableList<Pair<OverlayInput, Input>>.addRoundButton(
@@ -326,7 +364,7 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
 
     private fun MutableList<Pair<OverlayInput, Input>>.addDpad() {
         add(
-            OverlayDpad.DPAD_UP to DPadInput(
+            OverlayDpad.DPAD_UP to DPad(
                 ::onButtonStateChange,
                 currentAlpha,
                 getBoundingRectangleForInput(OverlayDpad.DPAD_UP)
@@ -348,11 +386,7 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
         )
     }
 
-
     private fun setInputs() {
-        if (inputs != null) {
-            return
-        }
         if (isControllerDisabled(controllerIndex)) {
             inputs = mutableListOf()
             return
@@ -373,6 +407,7 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
             NativeInput.EmulatedControllerType.WIIMOTE -> ::onWiimoteJoystickStateChange
             else -> { _, _, _, _, _ -> }
         }
+
         inputs = mutableListOf<Pair<OverlayInput, Input>>().apply {
             addRoundButton(OverlayButton.MINUS, "-")
             addRoundButton(OverlayButton.PLUS, "+")
@@ -396,30 +431,32 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
                 addRectangleButton(OverlayButton.Z)
                 addRoundButton(OverlayButton.HOME, HomeButtonInnerDrawing())
             }
-            if (nativeControllerType != NativeInput.EmulatedControllerType.CLASSIC
-                && nativeControllerType != NativeInput.EmulatedControllerType.WIIMOTE
-            ) {
-                addRoundButton(OverlayButton.L_STICK_CLICK, StickClickInnerDrawing())
-                addRoundButton(OverlayButton.R_STICK_CLICK, StickClickInnerDrawing())
+            if (nativeControllerType != NativeInput.EmulatedControllerType.CLASSIC && nativeControllerType != NativeInput.EmulatedControllerType.WIIMOTE) {
+                addRoundButton(OverlayButton.L_STICK_CLICK, "L3")
+                addRoundButton(OverlayButton.R_STICK_CLICK, "R3")
             }
 
             if (nativeControllerType == NativeInput.EmulatedControllerType.VPAD) {
                 addRoundButton(OverlayButton.BLOW_MIC, BlowButtonInnerDrawing())
             }
+
+            removeAll { (overlayInput, _) -> !isInputVisible(overlayInput) }
         }
     }
+
+    private fun isInputVisible(overlayInput: OverlayInput) =
+        settings.inputVisibilityMap[overlayInput.toConfig()] ?: true
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
         setWillNotDraw(false)
-        setInputs()
         requestFocus()
     }
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-        if (!visible) return
-        for ((_, input) in inputs!!) {
+
+        for ((_, input) in inputs) {
             input.draw(canvas)
         }
     }
@@ -432,12 +469,15 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
             }
             val x = event.x
             val y = event.y
-            for ((_, input) in inputs!!) {
+            for ((_, input) in inputs) {
                 if (input.isInside(x, y)) {
                     currentConfiguredInput = input
                     input.enableDrawingBoundingRect(
                         resources.getColor(R.color.purple, context.theme)
                     )
+                    val x = event.x.toInt()
+                    val y = event.y.toInt()
+                    input.moveInput(x, y, width, height)
                     return true
                 }
             }
@@ -467,15 +507,13 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
         val configuredInput = currentConfiguredInput
 
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-
             val x = event.x
             val y = event.y
-            for ((_, input) in inputs!!) {
+            for ((_, input) in inputs) {
                 if (input.isInside(x, y)) {
                     currentConfiguredInput = input
-                    input.enableDrawingBoundingRect(
-                        resources.getColor(R.color.red, context.theme)
-                    )
+                    val color = resources.getColor(R.color.red, context.theme)
+                    input.enableDrawingBoundingRect(color)
                     return true
                 }
             }
@@ -499,11 +537,11 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
                 val x2 = event.getHistoricalX(histSize - 1)
                 val y2 = event.getHistoricalY(histSize - 1)
                 configuredInput.resize(
-                    (x2 - x1).toInt(),
-                    (y2 - y1).toInt(),
-                    width,
-                    height,
-                    inputsMinWidthHeight
+                    diffX = (x2 - x1).toInt(),
+                    diffY = (y2 - y1).toInt(),
+                    maxWidth = width,
+                    maxHeight = height,
+                    minWidthHeight = inputsMinSize
                 )
             }
             return true
@@ -515,20 +553,15 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
         var touchEventProcessed = false
         when (inputMode) {
             InputMode.DEFAULT -> {
-                for ((_, input) in inputs!!) {
+                for ((_, input) in inputs) {
                     if (input.onTouch(event)) {
                         touchEventProcessed = true
                     }
                 }
             }
 
-            InputMode.EDIT_POSITION -> {
-                touchEventProcessed = onEditPosition(event)
-            }
-
-            InputMode.EDIT_SIZE -> {
-                touchEventProcessed = onEditSize(event)
-            }
+            InputMode.EDIT_POSITION -> touchEventProcessed = onEditPosition(event)
+            InputMode.EDIT_SIZE -> touchEventProcessed = onEditSize(event)
         }
 
         if (touchEventProcessed) {
@@ -539,6 +572,32 @@ class InputOverlaySurfaceView(context: Context, attrs: AttributeSet?) :
     }
 
     companion object {
-        private const val INPUTS_MIN_WIDTH_HEIGHT_DP = 20
+        private const val INPUTS_MIN_SIZE_DP = 20
     }
+}
+
+@Composable
+fun InputOverlaySurface(
+    isVisible: Boolean,
+    inputOverlaySettings: InputOverlaySettings,
+    inputMode: InputOverlaySurfaceView.InputMode,
+    onEditFinished: (Map<OverlayInputConfig, InputOverlayRect>) -> Unit,
+) {
+    AndroidView(
+        modifier = Modifier.fillMaxSize(),
+        factory = { context ->
+            InputOverlaySurfaceView(context).apply {
+                setVisible(isVisible)
+                setInputMode(inputMode)
+                applySettings(inputOverlaySettings)
+                onEditFinishedListener = onEditFinished
+            }
+        },
+        update = { view ->
+            view.setVisible(isVisible)
+            view.setInputMode(inputMode)
+            view.applySettings(inputOverlaySettings)
+            view.onEditFinishedListener = onEditFinished
+        }
+    )
 }

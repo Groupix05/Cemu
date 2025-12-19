@@ -6,6 +6,7 @@
 #include "config/ActiveSettings.h"
 #include "config/LaunchSettings.h"
 #include "util/helpers/helpers.h"
+#include "Cafe/HW/Latte/Core/Latte.h"
 
 void ActiveSettings::SetPaths(bool isPortableMode,
 		const fs::path& executablePath,
@@ -110,6 +111,18 @@ GraphicAPI ActiveSettings::GetGraphicsAPI()
 		api = kOpenGL;
 	
 	return api;
+}
+
+float ActiveSettings::GetTVGamma()
+{
+	const auto& config = GetConfig();
+	return config.overrideGammaValue.GetValue() + LatteGPUState.tvGamma * !config.overrideAppGammaPreference.GetValue();
+}
+
+float ActiveSettings::GetDRCGamma()
+{
+	const auto& config = GetConfig();
+	return config.overrideGammaValue.GetValue() + LatteGPUState.drcGamma * !config.overrideAppGammaPreference.GetValue();
 }
 
 bool ActiveSettings::AudioOutputOnlyAux()
@@ -269,7 +282,7 @@ fs::path ActiveSettings::GetDefaultMLCPath()
 	return GetUserDataPath("mlc01");
 }
 
-#if __ANDROID__
+#if BOOST_PLAT_ANDROID
 void ActiveSettings::SetNativeLibPath(const fs::path& nativeLibPath)
 {
 	s_native_lib_path = nativeLibPath;

@@ -8,6 +8,7 @@
 #include "Cafe/OS/libs/swkbd/swkbd.h"
 #include "wxgui/canvas/OpenGLCanvas.h"
 #include "wxgui/canvas/VulkanCanvas.h"
+#include "wxgui/canvas/MetalCanvas.h"
 #include "config/CemuConfig.h"
 #include "wxgui/MainWindow.h"
 #include "wxgui/helpers/wxHelpers.h"
@@ -26,7 +27,7 @@ extern WindowSystem::WindowInfo g_window_info;
 PadViewFrame::PadViewFrame(wxFrame* parent)
 	: wxFrame(nullptr, wxID_ANY, _("GamePad View"), wxDefaultPosition, wxDefaultSize, wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxSYSTEM_MENU | wxCAPTION | wxCLIP_CHILDREN | wxRESIZE_BORDER | wxCLOSE_BOX | wxWANTS_CHARS)
 {
-	g_window_info.window_pad = initHandleContextFromWxWidgetsWindow(this);
+	initHandleContextFromWxWidgetsWindow(this, g_window_info.window_pad);
 
 	SetIcon(wxICON(M_WND_ICON128));
 	wxWindow::EnableTouchEvents(wxTOUCH_PAN_GESTURES);
@@ -74,8 +75,12 @@ void PadViewFrame::InitializeRenderCanvas()
 	{
 		if (ActiveSettings::GetGraphicsAPI() == kVulkan)
 			m_render_canvas = new VulkanCanvas(this, wxSize(854, 480), false);
-		else
+		else if (ActiveSettings::GetGraphicsAPI() == kOpenGL)
 			m_render_canvas = GLCanvas_Create(this, wxSize(854, 480), false);
+#if ENABLE_METAL
+		else
+		    m_render_canvas = new MetalCanvas(this, wxSize(854, 480), false);
+#endif
 		sizer->Add(m_render_canvas, 1, wxEXPAND, 0, nullptr);
 	}
 	SetSizer(sizer);
@@ -198,7 +203,7 @@ void PadViewFrame::OnMouseLeft(wxMouseEvent& event)
 	instance.m_pad_mouse.position = { physPos.x, physPos.y };
 	if (event.ButtonDown(wxMOUSE_BTN_LEFT))
 		instance.m_pad_mouse.left_down_toggle = true;
-	
+
 }
 
 void PadViewFrame::OnMouseRight(wxMouseEvent& event)

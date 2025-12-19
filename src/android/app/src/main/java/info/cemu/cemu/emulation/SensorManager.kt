@@ -22,12 +22,36 @@ class SensorManager(context: Context) : SensorEventListener {
     private var gyroY = 0f
     private var gyroZ = 0f
     private var isListening = false
+    private var isActive = false
 
-    fun startListening() {
-        if (!hasMotionData || isListening) {
+    fun setIsListening(isListening: Boolean) {
+        this.isListening = isListening
+        if (isListening && !isActive) {
+            startListening()
+        } else if (!isListening && isActive) {
+            stopListening()
+        }
+    }
+
+    fun pauseListening() {
+        if (isActive) {
+            stopListening()
+        }
+    }
+
+    fun resumeListening() {
+        if (isListening && !isActive) {
+            startListening()
+        }
+    }
+
+    private fun startListening() {
+        if (!hasMotionData || isActive) {
             return
         }
-        isListening = true
+
+        isActive = true
+
         NativeInput.setMotionEnabled(true)
         sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME)
         sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
@@ -37,18 +61,20 @@ class SensorManager(context: Context) : SensorEventListener {
         this.deviceRotationProvider = deviceRotationProvider
     }
 
-    fun pauseListening() {
-        if (!hasMotionData || !isListening) {
+    private fun stopListening() {
+        if (!hasMotionData || !isActive) {
             return
         }
-        isListening = false
+
+        isActive = false
+
         NativeInput.setMotionEnabled(false)
         sensorManager.unregisterListener(this)
     }
 
-
     override fun onSensorChanged(event: SensorEvent) {
         val values = event.values
+
         if (event.sensor.type == Sensor.TYPE_GYROSCOPE) {
             val gyroValues = getSensorEventValues(values)
             gyroX = gyroValues.first
@@ -56,15 +82,17 @@ class SensorManager(context: Context) : SensorEventListener {
             gyroZ = gyroValues.third
             return
         }
+
         if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) {
             return
         }
+
         val (accelX, accelY, accelZ) = getSensorEventValues(values)
-        NativeInput.onMotion(event.timestamp, gyroX, gyroY, gyroZ, accelX, accelZ, -accelY)
+
+        NativeInput.onMotion(event.timestamp, gyroX, gyroY, gyroZ, accelX, accelY, -accelZ)
     }
 
-    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
-    }
+    override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {}
 
     private fun getSensorEventValues(values: FloatArray): Triple<Float, Float, Float> {
         val x: Float
@@ -74,21 +102,21 @@ class SensorManager(context: Context) : SensorEventListener {
         when (deviceRotation) {
             Surface.ROTATION_90 -> {
                 x = -values[1]
-                y = values[0]
+                y = -values[0]
             }
 
             Surface.ROTATION_180 -> {
-                x = -values[0]
+                x = values[0]
                 y = -values[1]
             }
 
             Surface.ROTATION_270 -> {
                 x = values[1]
-                y = -values[0]
+                y = values[0]
             }
 
             else /*Surface.ROTATION_0*/ -> {
-                x = values[0]
+                x = -values[0]
                 y = values[1]
             }
         }

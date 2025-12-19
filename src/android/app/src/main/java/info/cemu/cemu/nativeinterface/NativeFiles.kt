@@ -20,7 +20,7 @@ fun Uri.toNativePath(): String {
     if (delimiterPos == -1) {
         return uriPath
     }
-    return uriPath.substring(0, delimiterPos) + uriPath.substring(delimiterPos).replace(
+    return uriPath.take(delimiterPos) + uriPath.substring(delimiterPos).replace(
         PATH_SEPARATOR_ENCODED, PATH_SEPARATOR_DECODED
     )
 }
@@ -57,7 +57,7 @@ object NativeFiles {
                 return fd
             }
         } catch (e: Exception) {
-            Log.e("NativeFiles", "Cannot open content uri, error: ${e.message}")
+            Log.d("NativeFiles", "Cannot open content uri, error: ${e.message}")
         }
         return -1
     }
@@ -87,7 +87,7 @@ object NativeFiles {
                 }
             }
         } catch (e: Exception) {
-            Log.e("NativeFiles", "Cannot list files: ${e.message}")
+            Log.d("NativeFiles", "Cannot list files: ${e.message}")
         }
         var filesArray = arrayOfNulls<String>(files.size)
         filesArray = files.toArray(filesArray)
@@ -117,7 +117,7 @@ object NativeFiles {
                 return cursor != null && cursor.moveToFirst()
             }
         } catch (e: Exception) {
-            Log.e("NativeFiles", "Failed checking if file exists: ${e.message}")
+            Log.d("NativeFiles", "Failed checking if file exists: ${e.message}")
             return false
         }
     }

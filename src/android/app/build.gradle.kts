@@ -39,20 +39,18 @@ fun getVersionName(): String {
     return getGitHash() ?: "1.0"
 }
 
-fun getVersionCode(): Int = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
-
 val cemuDataFilesFolder = "../../../bin"
 
 android {
     namespace = "info.cemu.cemu"
     compileSdk = 36
-    ndkVersion = "26.3.11579264"
+    ndkVersion = "29.0.14206865"
     defaultConfig {
         applicationId = "info.cemu.cemu"
-        minSdk = 31
+        minSdk = 30
         targetSdk = 35
-        versionCode = getVersionCode()
         versionName = getVersionName()
+        versionCode = 1
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -102,8 +100,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility(JavaVersion.VERSION_17)
-        targetCompatibility(JavaVersion.VERSION_17)
+        sourceCompatibility(JavaVersion.VERSION_21)
+        targetCompatibility(JavaVersion.VERSION_21)
     }
 
     externalNativeBuild {
@@ -114,6 +112,7 @@ android {
     }
 
     defaultConfig {
+        @Suppress("UnstableApiUsage")
         externalNativeBuild {
             cmake {
                 arguments(
@@ -138,6 +137,7 @@ android {
                         )
                     )
                 }
+                // abiFilters("arm64-v8a", "x86_64")
                 abiFilters("arm64-v8a")
             }
         }
@@ -145,13 +145,11 @@ android {
 
     buildFeatures {
         buildConfig = true
-        dataBinding = true
-        viewBinding = true
         compose = true
     }
 
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
 }
 
@@ -161,8 +159,13 @@ abstract class ComputeCemuDataFilesHashTask : DefaultTask() {
         Pattern.compile(".*Cemu_(?:debug|release)"),
     )
 
-    @get:Input
-    abstract val cemuDataFolder: Property<String>
+    @get:InputDirectory
+    abstract val cemuDataFolder: DirectoryProperty
+
+    @get:OutputFile
+    val hashFile: RegularFileProperty = project.objects.fileProperty().convention(
+        project.layout.projectDirectory.dir("src/main/assets").file("hash.txt")
+    )
 
     private fun isFileIgnored(file: File): Boolean {
         return ignoreFilePatterns.any { pattern -> pattern.matcher(file.path).matches() }
@@ -170,41 +173,32 @@ abstract class ComputeCemuDataFilesHashTask : DefaultTask() {
 
     @TaskAction
     fun computeCemuDataFilesHash() {
-        val assetDir = File(project.projectDir, "src/main/assets")
-        if (!assetDir.exists()) {
-            assetDir.mkdirs()
-        }
+        val cemuDataFilesDir = cemuDataFolder.get().asFile
+        val hashOutFile = hashFile.get().asFile
 
-        val cemuDataFilesDir = File(project.projectDir, cemuDataFolder.get())
-        val hashFile = File(assetDir, "hash.txt")
-        val md = MessageDigest.getInstance("SHA-256")
+        val digest = MessageDigest.getInstance("SHA-256")
 
         if (!cemuDataFilesDir.isDirectory) {
-            hashFile.writeText("invalid")
+            hashOutFile.writeText("invalid")
             return
         }
 
-        val fileHashes = cemuDataFilesDir.walkTopDown()
+        cemuDataFilesDir.walkTopDown()
             .filter { it.isFile && !isFileIgnored(it) }
             .sortedBy { it.path }
-            .map {
-                md.reset()
-                md.update(it.path.toByteArray())
-                md.update(it.readBytes())
-                md.digest()
+            .forEach {
+                val relativePath = it.relativeTo(cemuDataFilesDir).path.toByteArray()
+                digest.update(relativePath)
+                digest.update(it.readBytes())
             }
-            .toList()
 
-        md.reset()
-        fileHashes.forEach { md.update(it) }
-
-        hashFile.writeText(DatatypeConverter.printHexBinary(md.digest()))
+        hashOutFile.writeText(DatatypeConverter.printHexBinary(digest.digest()))
     }
 }
 
 val computeCemuDataFilesHashTask =
     tasks.register<ComputeCemuDataFilesHashTask>("computeCemuDataFilesHash") {
-        cemuDataFolder = cemuDataFilesFolder
+        cemuDataFolder.set(File(cemuDataFilesFolder))
     }
 tasks.preBuild.dependsOn(computeCemuDataFilesHashTask)
 
@@ -215,13 +209,16 @@ gettext {
 
 dependencies {
     implementation(libs.aboutlibraries.compose.m3)
+    implementation(libs.androidx.datastore)
     implementation(libs.kotlinx.gettext)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.documentfile)
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui)
     testImplementation(libs.junit)
     testImplementation(libs.archunit.junit4)
     androidTestImplementation(libs.androidx.junit)

@@ -11,6 +11,11 @@ import info.cemu.cemu.nativeinterface.NativeInput
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+data class ButtonInfo(
+    val name: String,
+    val id: Int,
+)
+
 class ControllersViewModel(val controllerIndex: Int) : ViewModel() {
     private var _controllerType = MutableStateFlow(
         if (NativeInput.isControllerDisabled(controllerIndex)) NativeInput.EmulatedControllerType.DISABLED
@@ -23,6 +28,17 @@ class ControllersViewModel(val controllerIndex: Int) : ViewModel() {
 
     private val _controllers = MutableStateFlow<List<Pair<String, Int>>?>(null)
     val controllers = _controllers.asStateFlow()
+
+    private val _buttonToBind = MutableStateFlow<ButtonInfo?>(null)
+    val buttonToBind = _buttonToBind.asStateFlow()
+
+    fun setButtonToBind(buttonInfo: ButtonInfo) {
+        _buttonToBind.value = buttonInfo
+    }
+
+    fun clearButtonToBind() {
+        _buttonToBind.value = null
+    }
 
     private var vpadCount = 0
     private var wpadCount = 0

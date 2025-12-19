@@ -39,7 +39,7 @@ fun SingleSelection(
     choices: Collection<String>,
     isChoiceEnabled: (String) -> Boolean = { true },
     enabled: Boolean = true,
-    modifier: Modifier = Modifier.fillMaxWidth(),
+    modifier: Modifier = Modifier,
     onChoiceChanged: (String) -> Unit,
 ) {
     SingleSelection(
@@ -60,8 +60,8 @@ fun <T> SingleSelection(
     label: String,
     initialChoice: () -> T,
     choices: Collection<T>,
-    modifier: Modifier = Modifier.fillMaxWidth(),
-    choiceToString: @Composable (T) -> String,
+    modifier: Modifier = Modifier,
+    choiceToString: (T) -> String,
     isChoiceEnabled: (T) -> Boolean = { true },
     enabled: Boolean = true,
     onChoiceChanged: (T) -> Unit,
@@ -87,8 +87,8 @@ fun <T> SingleSelection(
     label: String,
     choice: T,
     choices: Collection<T>,
-    choiceToString: @Composable (T) -> String,
-    modifier: Modifier = Modifier.fillMaxWidth(),
+    choiceToString: (T) -> String,
+    modifier: Modifier = Modifier,
     enabled: Boolean = true,
     isChoiceEnabled: (T) -> Boolean = { true },
     onChoiceChanged: (T) -> Unit,
@@ -107,6 +107,7 @@ fun <T> SingleSelection(
     {
         Column(
             modifier = modifier
+                .fillMaxWidth()
                 .then(clickableModifier)
                 .padding(8.dp),
             verticalArrangement = Arrangement.Center,
@@ -144,7 +145,7 @@ private fun <T> SelectDialog(
     currentChoice: T,
     choices: Collection<T>,
     isChoiceEnabled: (T) -> Boolean,
-    choiceToString: @Composable (T) -> String,
+    choiceToString: (T) -> String,
     onDismissRequest: () -> Unit,
     onChoiceChanged: (T) -> Unit,
 ) {
@@ -207,10 +208,7 @@ fun Choice(label: String, selected: Boolean, isEnabled: Boolean, onClick: () -> 
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier
-            .let {
-                if (isEnabled) it.clickable { onClick() }
-                else it
-            }
+            .clickable(isEnabled, onClick = onClick)
             .padding(vertical = 16.dp, horizontal = 8.dp)
             .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,

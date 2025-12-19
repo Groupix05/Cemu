@@ -38,7 +38,7 @@ object NativeGameTitles {
     @JvmStatic
     external fun setCpuModeForTitle(gameTitleId: Long, cpuMode: Int)
 
-    val THREAD_QUANTUM_VALUES: IntArray = intArrayOf(
+    val THREAD_QUANTUM_VALUES = listOf(
         20000,
         45000,
         60000,
@@ -57,6 +57,24 @@ object NativeGameTitles {
 
     @JvmStatic
     external fun setShaderMultiplicationAccuracyForTitleEnabled(gameTitleId: Long, enabled: Boolean)
+
+    object DriverSettingMode {
+        const val GLOBAL: Int = 0
+        const val SYSTEM: Int = 1
+        const val CUSTOM: Int = 2
+    }
+
+    @Keep
+    data class DriverSetting(
+        val mode: Int,
+        val customPath: String? = null,
+    )
+
+    @JvmStatic
+    external fun getDriverSettingForTitle(gameTitleId: Long): DriverSetting
+
+    @JvmStatic
+    external fun setDriverSettingForTitle(gameTitleId: Long, driverSetting: DriverSetting)
 
     @JvmStatic
     external fun titleHasShaderCacheFiles(gameTitleId: Long): Boolean
@@ -79,7 +97,7 @@ object NativeGameTitles {
     @Keep
     data class Game(
         val titleId: Long,
-        val path: String?,
+        val path: String,
         val name: String?,
         val version: Short,
         val dlc: Short,
@@ -107,11 +125,15 @@ object NativeGameTitles {
             return name?.compareTo(other.name ?: "") ?: 0
         }
 
-        val icon: ImageBitmap? = _icon?.asImageBitmap()
+        private var iconBitmap: ImageBitmap? = null
+        val icon: ImageBitmap?
+            get() {
+                if (iconBitmap == null) {
+                    iconBitmap = _icon?.asImageBitmap()
+                }
 
-        fun isValid(): Boolean {
-            return !path.isNullOrEmpty() && !name.isNullOrEmpty()
-        }
+                return iconBitmap
+            }
     }
 
     @Keep
